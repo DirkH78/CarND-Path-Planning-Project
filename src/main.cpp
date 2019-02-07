@@ -254,44 +254,86 @@ int main() {
               car_s = end_path_s;
             }
           
-          	bool too_close = false;
+          	// initiate behaviour parameters
+          	bool too_close_ahead = false;
+          	bool too_close_right = false;
+          	bool too_close_left = false;
+          	double delta_vel = 0;
+          	double speed_limit = 49.5;
+          	double acceleration_limit = .2;
+          	double min_distance = 35;
           
           	// find ref_v to use
           for(int i = 0; i < sensor_fusion.size(); i++)
-              {
-                // car is in my lane
-            	float d = sensor_fusion[i][6];
-            	if(d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2))
-                {
-                  double vx = sensor_fusion[i][3];
-                  double vy = sensor_fusion[i][4];
-                  double check_speed = sqrt(vx * vx + vy * vy);
-                  double check_car_s = sensor_fusion[i][5];
-                  
-                  // project the future s value
-                  check_car_s += ((double)prev_size * .02 * check_speed);
-                  // check s values greater than mine and s gap
-                  if((check_car_s > car_s) && ((check_car_s - car_s) < 30))
-                  {
-                    // this will be the place for passing logics
-                    // ref_vel = check_speed;
-                    too_close = true;
-                    if(lane > 0)
-                    {
-                      lane = 0;
-                    }
-                  }
-                }
-              }
-          
-          	// what to do when we are slowed down
-          	if(too_close)
-            {
-              ref_vel -= .224;
-            }
-          else if(ref_vel < 49.5)
           {
-            ref_vel += .224;
+            float d = sensor_fusion[i][6];
+            int other_car_is_on_lane = -1;
+            // find out on which lane other cars are
+            if (d > 0 && d < 4) 
+            {
+              other_car_is_on_lane = 0;
+            }
+            else if (d > 4 && d < 8) 
+            {
+              other_car_is_on_lane = 1;
+            }
+            else if (d > 8 && d < 12) 
+            {
+              other_car_is_on_lane = 2;
+            }
+            // identify other cars trajectory
+            double vx = sensor_fusion[i][3];
+            double vy = sensor_fusion[i][4];
+            double other_car_abs_speed = sqrt(vx*vx + vy * vy);
+            double other_car_s = sensor_fusion[i][5];
+            // project the future s value
+            other_car_s += ((double)prev_size * .02 * other_car_abs_speed);
+            
+            // identify other cars current lane
+            if (other_car_is_on_lane == lane) 
+            {
+              // car ahead is dangerously close
+              too_close_ahead |= other_car_s > car_s && other_car_s - car_s < min_distance;
+            }
+            else if (other_car_is_on_lane - lane == 1) 
+            {
+              // right car is dangerously close
+              too_close_right |= car_s - min_distance < other_car_s && car_s + min_distance > other_car_s;
+            }
+            else if (other_car_is_on_lane - lane == -1) 
+            {
+              // left car is dangerously close
+              too_close_left |= car_s - min_distance < other_car_s && car_s + min_distance > other_car_s;
+            }
+          }
+            
+          // implementation of highway behavior
+          // when car is ahead...
+          if (too_close_ahead) {
+            // check whether passing on the left hand lane is possible and pass
+            if (!too_close_left && lane > 0) {
+              lane--;
+            }
+            // check whether passing on the right hand lane is possible and pass
+            else if (!too_close_right && lane != 2) {
+              lane++;
+            }
+            // if passing is not possible stay on lane and decelarate
+            else {
+              delta_vel -= acceleration_limit;
+            }
+          }
+          // when no car is ahead, move back to center lane....
+          else {
+            if (lane != 1) {
+              if ((lane == 0 && !too_close_right) || (lane == 2 && !too_close_left)) {
+                lane = 1;
+              }
+            }
+            // ...and accelerate
+            if (ref_vel < speed_limit) {
+              delta_vel += acceleration_limit;
+            }
           }
           
           	// widely spaced waypoints, evenly spaced at 30m for later interpolation
@@ -383,6 +425,14 @@ int main() {
           	// fill up the rest of the path planner after filling it with previous points; here we will always outpu 50 points
           	for (int i = 1; i <= 50 - previous_path_x.size(); i++)
             {
+              ref_vel += delta_vel;
+              if (ref_vel > speed_limit) {
+                ref_vel = speed_limit;
+              }
+              else if (ref_vel < acceleration_limit) {
+                ref_vel = acceleration_limit;
+              }
+              
               double N = (target_dist / (.02 * ref_vel / 2.24));
               double x_point = x_add_on + (target_x) / N;
               double y_point = s(x_point);
