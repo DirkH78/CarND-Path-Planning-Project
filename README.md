@@ -105,36 +105,11 @@ Please (do your best to) stick to [Google's C++ style guide](https://google.gith
 Note: regardless of the changes you make, your project must be buildable using
 cmake and make!
 
+### Structure
+The path planning algorithm consists of three major parts:
+1. The **prediction** part (line 267 to line 308 in main.cpp) is constantly checking for all identified external vehicles and predicts the future kinematic state of these vehicles and the ego-vehicle by using a simple discrete state-space model approach. This approach uses frenet-coordinates who can be accessed via the sensor fusion interface. After calculating the kinematic states of the vehicles, a simple logic decides whether the currently observed vehicle is one the same lane or a different lane realtive to the ego-vehicle.
+2. The **behavior planner** (line 310 to line 337 in main.cpp) then follows the following logic: Try to drive on center lane at maximum speed. Check whether there is a vehicle in front of you. If so, try to change lane to pass the vehicle, given that the target lane is clear and collisions can be avoided. If passing is not possible, decelerate the vehicle respectively.
+3. The **trajectory generator** approximates a spline curve. This procedure was descriped within the corses Q&A-video. This logic generates a spline curve by using the last two points iof the ego-cars previous trajectory and combines it with three new waypoints far ahead. This enables the possibilty to create a spline curve which reduces the lateral jerk to a value that is convenient for the driver.
 
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-
+### Results
+After compilation, this logic can be used in the simulator. The logic succesfully avoids any warnings considerung inconvenient jerk or acceleration. It also manages to navigate the car through dense traffic by utilizing the "passing behavior logic" mentioned before. The car is able to drive at least 4.32 miles without incident.
